@@ -1,10 +1,17 @@
 name: secure_coding
 channels:
   - defaults
+  - conda-forge
 dependencies:
   - python=3.9
   - pip
+  - sqlite
   - pip:
     - flask 
     - flask-socketio
     - flask-sqlalchemy
+    - eventlet
+    - Jinja2
+    - Werkzeug
+    - itsdangerous
+    - markupsafe
