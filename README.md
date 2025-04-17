@@ -27,6 +27,7 @@ cd secure_coding_WHS
 # Conda 환경 생성 & 활성화
 conda env create -f environments.yaml     # => secure_coding_env
 conda activate secure_coding_env
+```
 
 # environments.yaml 핵심 패키지 ↓
 
