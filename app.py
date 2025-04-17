@@ -14,9 +14,12 @@ import os
 import uuid
 import sqlite3
 from datetime import timedelta
-from flask import Flask, render_template, request, redirect, url_for, flash, session, g, abort
+from flask import Flask, render_template, request, Response, redirect, url_for, flash, session, g, abort
 from flask_socketio import SocketIO, send, emit
 from werkzeug.security import generate_password_hash, check_password_hash
+import bleach
+
+
 
 # CSRF 토큰 간단 예시 (실제로는 Flask-WTF 권장)
 # 여기서는 단순히 session에 랜덤 토큰을 저장해두고 폼 hidden으로 전달받아 검증하는 식
@@ -27,6 +30,7 @@ def generate_csrf_token():
 def check_csrf_token(request_token):
     stored = session.get('csrf_token')
     return stored and stored == request_token
+
 
 ############################
 # Flask & SocketIO 초기화
@@ -46,6 +50,16 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 DEBUG_MODE = True
 
 socketio = SocketIO(app, cors_allowed_origins="*")  # 필요하면 CORS 설정
+
+############################
+# 전역 보안 헤더
+############################
+@app.after_request
+def set_security_headers(resp: Response):
+    resp.headers['X-Frame-Options'] = "SAMEORIGIN"
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self';"
+    return resp
 
 ############################
 # DB 연결
@@ -234,6 +248,11 @@ def new_product():
             flash("상품명은 필수입니다.")
             return redirect(url_for('new_product'))
 
+        # ② 가격이 음수이거나 지나치게 큰 값이면 걸러내기(선택)
+        if float(price) <= 0 or float(price) > 1_000_000_000:
+            flash("가격 범위가 올바르지 않습니다.")
+            return redirect(url_for('new_product'))
+
         product_id = str(uuid.uuid4())
         db = get_db()
         db.execute("INSERT INTO products (id, title, description, price, seller_id) VALUES (?,?,?,?,?)",
@@ -302,6 +321,8 @@ def report():
 ############################
 @socketio.on('connect')
 def handle_connect():
+    if 'user_id' not in session:   # ★PATCH 비로그인 소켓 거부
+        return False
     print("사용자 소켓 연결됨")
 
 @socketio.on('disconnect')
@@ -310,15 +331,11 @@ def handle_disconnect():
 
 @socketio.on('send_message')
 def handle_send_message(data):
-    """
-    클라이언트가 보낸 채팅 메시지를 모든 사용자에게 브로드캐스트
-    data: { 'username': ..., 'message': ... }
-    """
-    # 보안을 위해 username을 여기서 session에서 가져와 대입하는게 이상적
-    # 여기서는 편의상 클라이언트가 준 username을 그대로 씀 (데모 목적)
+    raw_msg = str(data.get('message', ''))[:300]        # ★PATCH 300자 제한
+    clean_msg = bleach.clean(raw_msg, strip=True)       # ★PATCH XSS 제거
     broadcast_data = {
-        'username': data.get('username', '???'),
-        'message': data.get('message', ''),
+        'username': session.get('user_id', '???'),
+        'message': clean_msg,
         'msg_id': str(uuid.uuid4())
     }
     send(broadcast_data, broadcast=True)
