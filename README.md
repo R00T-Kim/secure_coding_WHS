@@ -31,10 +31,10 @@ conda activate secure_coding_env
 
 # environments.yaml 핵심 패키지 ↓
 
-패키지 | 용도
-flask 2.3.x | 웹 프레임워크
-flask-socketio + eventlet | 실시간 채팅(WebSocket)
-bleach | XSS 필터
+패키지
+flask 2.3.x
+flask-socketio + eventlet
+bleach |
 (선택) flask-sqlalchemy | ORM 전환 대비
 
 # 실행 방법
